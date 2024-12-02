@@ -22,9 +22,9 @@
 
 # 项目效果
 
-![](.\images\01.jpg)
+![image](https://github.com/LiuLin1220/librarymanagement/blob/master/images/01.jpg)
 
-![](.\images\02.jpg)
+![image](https://github.com/LiuLin1220/librarymanagement/blob/master/images/02.jpg)
 
 # 环境
 
