@@ -60,6 +60,8 @@ npm run serve
 
 根据显示信息浏览器进行访问。
 
+
+
 ## 后端
 
 server目录下输入
@@ -68,3 +70,18 @@ server目录下输入
 node index.js
 ```
 
+
+
+# 参考资料
+
+* 使用的框架
+  * [介绍 | vue-element-admin](https://panjiachen.github.io/vue-element-admin-site/zh/guide/)
+
+* 安装搭建
+  * [Vue + Element UI + NodeJs(Express)全栈开发后台管理系统_笔记_vue elementui 管理系统-CSDN博客](https://blog.csdn.net/weixin_42628594/article/details/108594028)
+
+* 后端路由重构
+  *  https://www.bilibili.com/video/BV1Up421D7kz 中的“19-使用中间件”
+
+* 前端组件
+  * [组件 | Element](https://element.eleme.cn/#/zh-CN/component/installation)
