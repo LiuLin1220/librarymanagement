@@ -20,6 +20,12 @@
 
 
 
+# 项目效果
+
+![](.\images\01.jpg)
+
+![](.\images\02.jpg)
+
 # 环境
 
 ```
@@ -85,3 +91,4 @@ node index.js
 
 * 前端组件
   * [组件 | Element](https://element.eleme.cn/#/zh-CN/component/installation)
+
