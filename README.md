@@ -92,3 +92,8 @@ node index.js
 * 前端组件
   * [组件 | Element](https://element.eleme.cn/#/zh-CN/component/installation)
 
+
+
+# ps
+
+other文件夹中的文件与前后端代码无关
