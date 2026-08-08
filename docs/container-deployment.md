@@ -41,6 +41,49 @@ Docker 的 [Ubuntu 安装](https://docs.docker.com/engine/install/ubuntu/)和
 [daemon 代理配置](https://docs.docker.com/engine/daemon/proxy/)应按官方文档完成，
 不由本仓库修改宿主机。
 
+## WSL 生命周期前置条件
+
+当 Docker Engine 直接运行在 WSL 中，而不是由 Docker Desktop 托管时，后台
+systemd 服务和容器本身不足以阻止 WSL 发行版空闲退出。发行版退出会让 Docker
+daemon 向容器发送停止信号；下次进入 WSL 时，`restart: unless-stopped` 才会把原
+容器重新启动。这不是应用崩溃，也不是 Compose 健康检查触发的重启。
+
+WSL 有两层空闲生命周期：共享 WSL 2 虚拟机和具体发行版实例。微软文档记录了
+`vmIdleTimeout` 的默认值为 60000 毫秒；微软 WSL 维护者进一步说明，长期运行发行版
+还需要 `[general]` 下的 `instanceIdleTimeout=-1`。在 Windows 用户目录的
+`%UserProfile%\.wslconfig` 中合并以下两项，不要覆盖已有的网络、内存或 DNS 配置：
+
+```ini
+[general]
+instanceIdleTimeout=-1
+
+[wsl2]
+vmIdleTimeout=-1
+```
+
+参考：[WSL 高级配置](https://learn.microsoft.com/windows/wsl/wsl-config)和
+[microsoft/WSL#13291](https://github.com/microsoft/WSL/issues/13291)。
+
+影响：这两个设置作用于当前 Windows 用户的所有 WSL 2 发行版；空闲时不再自动
+释放发行版和共享虚拟机，可能持续占用内存。配置生效需要在 Windows PowerShell
+执行 `wsl --shutdown`，它会立即停止所有 WSL 发行版及其中的容器，所以应先保存
+工作并确认没有其他任务依赖 WSL。
+
+回滚：从 `.wslconfig` 删除这两项，再执行一次 `wsl --shutdown`，即可恢复默认空闲
+回收行为。验证时先执行 `docker compose up -d`，关闭所有 WSL 终端；随后从 Windows
+确认发行版仍为 `Running`，并确认应用仍可访问：
+
+```powershell
+wsl --list --verbose
+```
+
+```powershell
+curl.exe --fail --silent --show-error http://127.0.0.1:8080/health/ready
+```
+
+这是一次性的宿主机前置配置。项目部署接口仍然只有 `docker compose up -d`，Compose
+文件不会尝试修改 WSL 全局设置。
+
 ## Compose 内部流程
 
 `docker compose up -d` 隐藏了以下实现细节：

@@ -74,9 +74,11 @@
 - [x] 增加不依赖 Docker 的交付资产测试，以及 CI Compose 配置解析门禁。
 - [x] 在 Compose 中接入本机 `12334` 构建代理，并让普通 `up -d` 始终构建当前代码。
 - [x] 将重构分支推送到 GitHub，并在 WSL 原生 ext4 文件系统完成独立克隆和预检。
-- [ ] 在具备 Docker Engine 的机器上完成镜像构建和真实容器启动。
-- [ ] 抽查页面、就绪接口和样例图书 API，并验证写入数据经过停止/重启后仍存在。
-- [ ] 记录实际镜像 ID/摘要、`compose ps`、健康状态和日志证据。
+- [x] 在 WSL Docker Engine 上用准确的 `docker compose up -d` 完成构建和真实启动。
+- [x] 抽查页面、存活/就绪接口、样例图书 API 和真实 MySQL 表结构。
+- [x] 记录实际镜像 ID/摘要、容器健康状态、密钥属性和只读数据库证据。
+- [ ] 写入可识别的测试记录，验证 `down`/`up -d` 后仍存在，再删除测试记录。
+- [ ] 配置并验证无人持有 WSL 终端时发行版和容器仍持续运行。
 
 当前开发机的 Ubuntu 26.04 WSL 已安装 Docker Engine/CLI 29.7.2、containerd 2.3.3、
 Buildx 0.36.1 和 Compose 5.4.0。Docker 守护进程通过本机 `12334` HTTP 代理成功
@@ -95,4 +97,21 @@ Docker 与 npm 依赖源均通过 `127.0.0.1:12334` 可达。已预拉取固定�
 `sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3`，
 `mysql:8.4.11` 摘要
 `sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb`。
-当前纯 Compose 接口的真实构建、应用/MySQL 启动及运行态证据将在本批次完成后更新。
+纯 Compose 接口已完成一次真实运行：准确执行 `docker compose up -d` 返回 0，构建
+出的 `librarymanagement-app:local` 镜像 ID 为
+`sha256:38a2f80aca62486d50dfb6fcabae28bdea901836ab63801e85b4e29deeea11fc`，
+应用和 MySQL 容器均进入 `healthy`。应用只映射
+`127.0.0.1:8080->3001/tcp`，数据库没有宿主端口。
+
+运行态抽查中，首页返回 HTTP 200 和“图书销售管理系统”静态页面；`/health`、
+`/health/ready` 和 `/api/get_books` 均返回 HTTP 200。真实数据库发现顺序为
+`SHOW DATABASES` → `SHOW TABLES` → `DESCRIBE bookbaseinfo` → `SELECT`；
+`librarymanagement.bookbaseinfo` 有 5 个预期列和 12 条样例记录。两个卷内密码文件
+都是 root 所有、0444、64 字节，未输出密码内容。
+
+排障同时确认了一项宿主边界：当前 `%UserProfile%\.wslconfig` 未配置实例空闲超时，
+关闭最后一个 WSL 会话后，发行版会退出并让 Docker 优雅停止两个容器。保持临时用户
+会话时容器持续健康，说明这不是应用或 MySQL 崩溃。长期运行需要合并
+`[general] instanceIdleTimeout=-1` 与 `[wsl2] vmIdleTimeout=-1`；这是影响所有 WSL 2
+发行版的宿主配置，需单独批准后再修改并验证。数据库写入/清理和持久化验证也需在
+明确允许测试数据变更后完成。

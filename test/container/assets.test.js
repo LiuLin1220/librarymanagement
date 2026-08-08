@@ -69,3 +69,12 @@ test('documentation keeps ordinary stop separate from destructive volume deletio
   assert.match(deploymentGuide, /docker compose down -v/)
   assert.match(deploymentGuide, /不可恢复|不可逆/)
 })
+
+test('documentation makes WSL host lifetime an explicit prerequisite', () => {
+  const deploymentGuide = read('docs/container-deployment.md')
+
+  assert.match(deploymentGuide, /instanceIdleTimeout=-1/)
+  assert.match(deploymentGuide, /vmIdleTimeout=-1/)
+  assert.match(deploymentGuide, /作用于当前 Windows 用户的所有 WSL 2 发行版/)
+  assert.match(deploymentGuide, /wsl --shutdown/)
+})

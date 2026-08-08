@@ -30,7 +30,11 @@ cd "$HOME/src/librarymanagement"
 ```
 
 确保 WSL 内的 Docker Engine 和 Compose plugin 已启动，且 Docker 守护进程可以
-通过 `http://127.0.0.1:12334` 拉取镜像。然后直接执行：
+通过 `http://127.0.0.1:12334` 拉取镜像。若 Docker Engine 直接运行在 WSL 中，
+还需一次性配置 WSL 实例和虚拟机不要因空闲自动退出；否则关闭最后一个 WSL
+终端后，容器也会被一起停止。该宿主级配置的影响、回滚和验证见
+[WSL 生命周期前置条件](docs/container-deployment.md#wsl-生命周期前置条件)。完成一次
+宿主初始化后，项目仍只需直接执行：
 
 ```sh
 docker compose up -d
