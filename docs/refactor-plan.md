@@ -81,4 +81,6 @@
 
 当前静态证据：`npm run check` 通过，共执行 27 个测试；PowerShell 5.1 和 POSIX
 Shell 的语法/缺少 Docker 失败路径通过；lockfile 干净安装预检通过。Compose YAML
-已完成通用语法解析，Docker Compose 语义解析仍需在具备 Docker 的环境执行。
+已完成通用语法解析，并通过 Compose Specification 提交 `11296e3` 的官方 JSON
+Schema 校验（Schema SHA-256：`73ca5878c77570ba222a558016c7b3c6770ba5f3377786593e32180666512f8f`）。
+Docker Compose CLI 的变量展开、模型归一化和运行态仍需在具备 Docker 的环境执行。
