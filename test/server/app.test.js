@@ -2,8 +2,11 @@
 
 const assert = require('node:assert/strict')
 const http = require('node:http')
+const path = require('node:path')
 const test = require('node:test')
 const { createApp } = require('../../server/app')
+
+const STATIC_FIXTURE = path.join(__dirname, '..', 'fixtures', 'static')
 
 function createRepository(overrides = {}) {
   return {
@@ -43,22 +46,29 @@ async function request(app, options = {}) {
           port: address.port,
           method: options.method || 'GET',
           path: options.path || '/',
-          headers: rawBody
-            ? {
-                'content-type': 'application/json',
-                'content-length': Buffer.byteLength(rawBody)
-              }
-            : undefined
+          headers: {
+            ...options.headers,
+            ...(rawBody
+              ? {
+                  'content-type': 'application/json',
+                  'content-length': Buffer.byteLength(rawBody)
+                }
+              : {})
+          }
         },
         incoming => {
           const chunks = []
           incoming.on('data', chunk => chunks.push(chunk))
           incoming.on('end', () => {
             const text = Buffer.concat(chunks).toString('utf8')
+            const contentType = incoming.headers['content-type'] || ''
             resolve({
               status: incoming.statusCode,
               headers: incoming.headers,
-              body: text ? JSON.parse(text) : undefined
+              body:
+                text && contentType.includes('json')
+                  ? JSON.parse(text)
+                  : text || undefined
             })
           })
         }
@@ -93,6 +103,66 @@ test('health endpoint is independent from the database', async () => {
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, { status: 'ok' })
   assert.equal(response.headers['x-powered-by'], undefined)
+})
+
+test('readiness endpoint reflects database availability without leaking errors', async t => {
+  await t.test('ready', async () => {
+    const app = createApp({
+      bookRepository: createRepository(),
+      logger: silentLogger,
+      readinessCheck: async () => {}
+    })
+
+    const response = await request(app, { path: '/health/ready' })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { status: 'ready' })
+  })
+
+  await t.test('not ready', async () => {
+    const app = createApp({
+      bookRepository: createRepository(),
+      logger: silentLogger,
+      readinessCheck: async () => {
+        throw new Error('password=secret; database is unavailable')
+      }
+    })
+
+    const response = await request(app, { path: '/health/ready' })
+
+    assert.equal(response.status, 503)
+    assert.deepEqual(response.body, { status: 'not_ready' })
+    assert.equal(JSON.stringify(response.body).includes('secret'), false)
+  })
+})
+
+test('production app serves the frontend without masking API 404 responses', async t => {
+  const app = createApp({
+    bookRepository: createRepository(),
+    logger: silentLogger,
+    staticDirectory: STATIC_FIXTURE
+  })
+
+  await t.test('serves a client-side route', async () => {
+    const response = await request(app, {
+      path: '/Book/base_info',
+      headers: { accept: 'text/html' }
+    })
+
+    assert.equal(response.status, 200)
+    assert.match(response.body, /container-test-app/)
+    assert.equal(response.headers['cache-control'], 'no-cache')
+  })
+
+  await t.test('keeps missing API routes as JSON', async () => {
+    const response = await request(app, {
+      path: '/api/missing',
+      headers: { accept: 'text/html' }
+    })
+
+    assert.equal(response.status, 404)
+    assert.equal(response.body.error.code, 'ROUTE_NOT_FOUND')
+  })
 })
 
 test('collection endpoints keep an empty collection as an array', async () => {

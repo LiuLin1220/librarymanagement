@@ -7,6 +7,10 @@
 `GET /health` 返回 HTTP 200 和 `{ "status": "ok" }`。它只判断进程是否存活，不
 查询 MySQL。
 
+`GET /health/ready` 会执行一次最小数据库查询。数据库可用时返回 HTTP 200 和
+`{ "status": "ready" }`；连接失败时返回 HTTP 503 和
+`{ "status": "not_ready" }`，不公开驱动错误或凭据。容器健康检查使用这个接口。
+
 ## 图书接口
 
 | 方法 | 路径 | 请求 | 成功响应 |

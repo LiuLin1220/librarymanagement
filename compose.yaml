@@ -1,0 +1,102 @@
+services:
+  app:
+    image: ${APP_IMAGE:-librarymanagement-app:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VUE_APP_API_BASE_URL: /api
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      STATIC_DIRECTORY: /app/dist
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: ${MYSQL_USER:-library_app}
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      DB_NAME: ${MYSQL_DATABASE:-librarymanagement}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+    secrets:
+      - db_app_password
+    ports:
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8080}:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:' + process.env.PORT + '/health/ready')
+          .then(response => { if (!response.ok) process.exit(1) })
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  db:
+    image: ${MYSQL_IMAGE:-mysql:8.4.11}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-librarymanagement}
+      MYSQL_USER: ${MYSQL_USER:-library_app}
+      MYSQL_PASSWORD_FILE: /run/secrets/db_app_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MYSQL_INITDB_SKIP_TZINFO: "1"
+    secrets:
+      - db_app_password
+      - db_root_password
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./other/librarymanagement.sql:/docker-entrypoint-initdb.d/10-librarymanagement.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$$(cat /run/secrets/db_app_password)"
+          mysql --protocol=TCP --host=127.0.0.1
+          --user="$$MYSQL_USER" "$$MYSQL_DATABASE"
+          --execute="SELECT 1 FROM bookbaseinfo LIMIT 1" --silent
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  db-data:
+
+secrets:
+  db_app_password:
+    file: ./.docker-secrets/db_app_password
+  db_root_password:
+    file: ./.docker-secrets/db_root_password

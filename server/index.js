@@ -12,7 +12,11 @@ async function startServer() {
   const bookRepository = createBookRepository(database)
   const app = createApp({
     bookRepository,
-    corsOrigin: config.corsOrigin
+    corsOrigin: config.corsOrigin,
+    staticDirectory: config.staticDirectory,
+    readinessCheck: async () => {
+      await database.execute('SELECT 1')
+    }
   })
 
   const server = app.listen(config.port, () => {

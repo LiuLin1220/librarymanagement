@@ -15,9 +15,37 @@
 
 模块边界和数据流见 [docs/architecture.md](docs/architecture.md)，接口约定见
 [docs/api.md](docs/api.md)，重构进度和剩余债务见
-[docs/refactor-plan.md](docs/refactor-plan.md)。
+[docs/refactor-plan.md](docs/refactor-plan.md)，容器生命周期、持久化和回滚见
+[docs/container-deployment.md](docs/container-deployment.md)。
 
-## 环境要求
+## 容器一键部署
+
+已安装并启动 Docker Desktop 后，在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\container.ps1 up
+```
+
+脚本会生成本地随机数据库 secret、解析 Compose、保留上一版应用镜像、构建并
+启动 Vue/Express 与 MySQL，等待健康检查后抽查页面和图书接口。默认访问地址是
+`http://localhost:8080`，MySQL 不向宿主机开放端口。
+
+Linux、macOS 或 WSL 使用：
+
+```sh
+sh scripts/container.sh up
+```
+
+停止服务但保留数据库卷：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\container.ps1 down
+```
+
+详细影响、回滚和删除数据前的警告见
+[容器化部署说明](docs/container-deployment.md)。
+
+## 本地开发环境要求
 
 - Node.js 22 LTS（`.nvmrc` 和 CI 使用该版本）
 - npm 10 或更高版本
@@ -70,7 +98,8 @@ npm run check
 ```
 
 测试通过注入假的数据仓库验证成功、空列表、输入错误、记录不存在和数据库异常等
-响应。它不代表 MySQL 视图、触发器和存储过程已经完成真实环境验证。
+响应，并检查容器交付资产的关键约束。它不代表镜像已构建，也不代表 MySQL 视图、
+触发器和存储过程已经完成真实容器验证。
 
 ## 主要目录
 
@@ -82,6 +111,8 @@ server/config/           环境配置和连接池
 server/routes/           HTTP 输入与响应
 server/repositories/     SQL 和字段映射
 test/server/             数据库无关测试
+scripts/container.*      容器启动、停止、验证和应用镜像回滚
+compose.yaml             应用、数据库、健康检查、secret 和数据卷
 other/librarymanagement.sql  数据库结构与样例数据
 ```
 

@@ -1,0 +1,15 @@
+.git
+.github
+.docker-secrets
+.env
+.env.*
+node_modules
+dist
+coverage
+docs
+images
+other
+scripts
+test
+*.md
+npm-debug.log*

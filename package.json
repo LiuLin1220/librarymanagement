@@ -14,7 +14,7 @@
     "build": "vue-cli-service build",
     "lint": "eslint --ext .js,.vue src server test",
     "lint:fix": "eslint --ext .js,.vue src server test --fix",
-    "test": "node --test test/server/app.test.js test/server/book-repository.test.js test/server/env.test.js",
+    "test": "node --test test/server/app.test.js test/server/book-repository.test.js test/server/env.test.js test/container/assets.test.js",
     "check": "npm run lint && npm test"
   },
   "dependencies": {

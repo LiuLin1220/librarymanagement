@@ -63,3 +63,22 @@
 - **Medium：** 增加一次性 MySQL 集成环境，验证视图、触发器和存储过程。
 - **Medium：** API 如果要暴露到可信本机之外，需要认证和授权。
 - **Low：** 通过版本化 `/api/v1` 迁移统一旧接口命名。
+
+## 第二批：容器化一键部署（2026-08-08）
+
+- [x] 增加多阶段应用镜像，构建 Vue 后只安装生产依赖并以 `node` 用户运行。
+- [x] 增加 Compose 应用/MySQL 拓扑、随机文件型 secret、数据卷和日志轮转。
+- [x] MySQL 初始化完成后再启动应用；增加数据库感知的 `/health/ready`。
+- [x] 生产进程同源托管 Vue 静态文件，保留 `/api` 和健康接口的 JSON 404 边界。
+- [x] 增加 Windows/POSIX 一键启动、验证、停止、状态、日志和应用镜像回滚动作。
+- [x] 增加不依赖 Docker 的交付资产测试，以及 CI Compose 配置解析门禁。
+- [ ] 在具备 Docker Engine 的机器上完成镜像构建和真实容器启动。
+- [ ] 抽查页面、就绪接口和样例图书 API，并验证写入数据经过停止/重启后仍存在。
+- [ ] 记录实际镜像 ID/摘要、`compose ps`、健康状态和日志证据。
+
+当前开发机的 Windows 与 WSL 均没有 Docker/Podman 命令，因此完成项只表示源码、
+脚本和静态门禁已经实现；不能据此宣称容器已经实际跑通。
+
+当前静态证据：`npm run check` 通过，共执行 27 个测试；PowerShell 5.1 和 POSIX
+Shell 的语法/缺少 Docker 失败路径通过；lockfile 干净安装预检通过。Compose YAML
+已完成通用语法解析，Docker Compose 语义解析仍需在具备 Docker 的环境执行。
