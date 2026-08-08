@@ -1,99 +1,91 @@
-# 项目背景
+# 图书销售管理系统
 
-一个数据库课程设计，具有前端页面，安装运行需`node`和`npm`，也可当作Web课程设计。存储过程、触发器等任务实现在`librarymanagement.sql`文件中。原要求如下。
+这是一个数据库课程设计项目，包含 Vue 管理页面、Express API 和 MySQL
+数据模型。系统支持图书基础信息维护、采购/销售登记、库存查看和月度销售统计。
 
-> **《数据库原理与技术》课程设计：图书销售管理系统**
->
-> 系统功能的基本要求：
->
-> Ø 图书各种信息的输入。
->
-> Ø 图书信息的修改、删除；
->
-> Ø 图书销售: 输入书号查询图书信息，输入购买数量、统计销售金额，生成销售记录。
->
-> Ø 按照关键字查询、统计符合条件的图书信息：书号、书名、作者、出版社。
->
-> Ø 每月图书的销售排名报表生成，包括日期、书名、月销售总量。
->
-> **重点：做好销售统计了解图书的销售情况**
+![图书基础信息页面](images/01.jpg)
 
+![月度销售统计页面](images/02.jpg)
 
+## 技术结构
 
-# 项目效果
+- 前端：Vue 2.7、Vue Router、Element UI、Axios
+- 后端：Node.js、Express 5、`mysql2/promise`
+- 数据库：MySQL 8，结构和样例数据见 `other/librarymanagement.sql`
 
-![image](https://github.com/LiuLin1220/librarymanagement/blob/master/images/01.jpg)
+模块边界和数据流见 [docs/architecture.md](docs/architecture.md)，接口约定见
+[docs/api.md](docs/api.md)，重构进度和剩余债务见
+[docs/refactor-plan.md](docs/refactor-plan.md)。
 
-![image](https://github.com/LiuLin1220/librarymanagement/blob/master/images/02.jpg)
+## 环境要求
 
-# 环境
+- Node.js 22 LTS（`.nvmrc` 和 CI 使用该版本）
+- npm 10 或更高版本
+- MySQL 8（仅真实数据库运行需要；lint 和单元测试不需要数据库）
 
-```
-npm -v
-8.19.4
+## 安装
 
-node -v
-v16.20.2
+```powershell
+npm ci
 ```
 
+## 配置
 
+复制环境变量模板：
 
-# 搭建
-
-根目录下输入
-
-```shell
-npm install
+```powershell
+Copy-Item -LiteralPath '.env.example' -Destination '.env.local'
 ```
 
+然后编辑 `.env.local`，至少填写 `DB_USER`、`DB_PASSWORD` 和 `DB_NAME`。
+真实凭据只放在本地环境文件中，不要提交到 Git。
 
+数据库结构不会由应用自动创建。请在确认实际 MySQL 实例和目标数据库后，将
+`other/librarymanagement.sql` 导入与 `DB_NAME` 一致的数据库。该脚本会删除并重建
+同名表、视图、存储过程和触发器，不能对未知或已有重要数据的数据库直接执行。
 
-# 配置
+## 运行
 
-server目录下的config.js文件修改数据库配置信息
+启动后端 API：
 
+```powershell
+npm start
+```
 
+另开终端启动前端开发服务器：
 
-# 运行
-
-## 前端
-
-根目录下输入
-
-```shell
+```powershell
 npm run serve
 ```
 
-根据显示信息浏览器进行访问。
+默认地址：前端 `http://localhost:8080`，后端 `http://localhost:3001`。如需修改，
+使用 `.env.local` 中的 `PORT`、`CORS_ORIGIN` 和 `VUE_APP_API_BASE_URL`。
 
+## 验证
 
+运行 lint 和不依赖数据库的 API 契约测试：
 
-## 后端
-
-server目录下输入
-
-```shell
-node index.js
+```powershell
+npm run check
 ```
 
+测试通过注入假的数据仓库验证成功、空列表、输入错误、记录不存在和数据库异常等
+响应。它不代表 MySQL 视图、触发器和存储过程已经完成真实环境验证。
 
+## 主要目录
 
-# 参考资料
+```text
+src/api/                 前端 HTTP 边界
+src/components/          可复用表单组件
+src/views/               页面组件
+server/config/           环境配置和连接池
+server/routes/           HTTP 输入与响应
+server/repositories/     SQL 和字段映射
+test/server/             数据库无关测试
+other/librarymanagement.sql  数据库结构与样例数据
+```
 
-* 使用的框架
-  * [介绍 | vue-element-admin](https://panjiachen.github.io/vue-element-admin-site/zh/guide/)
+## 当前边界
 
-* 安装搭建
-  * [Vue + Element UI + NodeJs(Express)全栈开发后台管理系统_笔记_vue elementui 管理系统-CSDN博客](https://blog.csdn.net/weixin_42628594/article/details/108594028)
-
-* 后端路由重构
-  *  https://www.bilibili.com/video/BV1Up421D7kz 中的“19-使用中间件”
-
-* 前端组件
-  * [组件 | Element](https://element.eleme.cn/#/zh-CN/component/installation)
-
-
-
-# ps
-
-other文件夹中的文件与前后端代码无关
+本轮重构保留了原页面路径和后端 API 路径。Vue 2 已结束官方维护，因此 Vue 3 +
+Vite 迁移被记录为独立后续工作；它不与本轮行为保持型重构混在一起。
