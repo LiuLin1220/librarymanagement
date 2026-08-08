@@ -77,15 +77,15 @@
 - [x] 在 WSL Docker Engine 上用准确的 `docker compose up -d` 完成构建和真实启动。
 - [x] 抽查页面、存活/就绪接口、样例图书 API 和真实 MySQL 表结构。
 - [x] 记录实际镜像 ID/摘要、容器健康状态、密钥属性和只读数据库证据。
-- [ ] 写入可识别的测试记录，验证 `down`/`up -d` 后仍存在，再删除测试记录。
-- [ ] 配置并验证无人持有 WSL 终端时发行版和容器仍持续运行。
+- [x] 写入可识别的测试记录，验证 `down`/`up -d` 后仍存在，再删除测试记录。
+- [x] 配置并验证无人持有 WSL 终端时发行版和容器仍持续运行。
 
 当前开发机的 Ubuntu 26.04 WSL 已安装 Docker Engine/CLI 29.7.2、containerd 2.3.3、
 Buildx 0.36.1 和 Compose 5.4.0。Docker 守护进程通过本机 `12334` HTTP 代理成功
-拉取并运行 `hello-world`；新 WSL 会话可直接访问 Docker，执行前后的 `docker ps`
-均未发现项目容器。
+拉取并运行 `hello-world`；新 WSL 会话可直接访问 Docker，真实运行证据见下文。
 
-上一版证据：`npm run check` 通过，共执行 30 个测试；
+最终静态证据：`npm run check` 通过，共执行 30 个测试；
+`docker compose config --quiet` 返回 0；Git 跟踪文件中 `scripts/` 条目为 0。
 Compose Specification 提交 `11296e3` 的官方 JSON Schema 校验继续通过（Schema
 SHA-256：`73ca5878c77570ba222a558016c7b3c6770ba5f3377786593e32180666512f8f`）。真实
 Compose CLI 已完成 `host + 127.0.0.1:12334` 构建代理配置的变量展开与模型归一化。
@@ -117,9 +117,21 @@ Docker 与 npm 依赖源均通过 `127.0.0.1:12334` 可达。已预拉取固定�
 与容器的 `com.docker.compose.image` 标签一致；因此这是内容幂等，不是 Compose 漏掉
 代码更新。
 
-排障同时确认了一项宿主边界：当前 `%UserProfile%\.wslconfig` 未配置实例空闲超时，
-关闭最后一个 WSL 会话后，发行版会退出并让 Docker 优雅停止两个容器。保持临时用户
-会话时容器持续健康，说明这不是应用或 MySQL 崩溃。长期运行需要合并
-`[general] instanceIdleTimeout=-1` 与 `[wsl2] vmIdleTimeout=-1`；这是影响所有 WSL 2
-发行版的宿主配置，需单独批准后再修改并验证。数据库写入/清理和持久化验证也需在
-明确允许测试数据变更后完成。
+排障同时确认了一项宿主边界：原 `%UserProfile%\.wslconfig` 未配置实例空闲超时，
+关闭最后一个 WSL 会话后，systemd 日志反复到达 `System Power Off`，Docker 因发行版
+退出而优雅停止容器；这不是应用或 MySQL 崩溃。经授权后，原配置已备份为
+`%UserProfile%\.wslconfig.codex-backup-20260808-1508`，并在保留 mirrored 网络、
+auto proxy 和 DNS tunneling 的同时合并 `[general] instanceIdleTimeout=-1` 与
+`[wsl2] vmIdleTimeout=-1`。
+
+执行 `wsl --shutdown` 使配置生效后，又用 `wsl --terminate Ubuntu-26.04-LTS` 清除
+用户会话并以 `root -- true` 启动发行版。在没有 `ll` 登录会话、`sing-box`、`sleep`
+或 Compose 前台进程的条件下等待 80 秒，发行版仍为 `Running`；应用和 MySQL 均保持
+`healthy`，期间没有新的 Docker 停止或 systemd 关机事件。删除新增两项并恢复备份，
+再执行 `wsl --shutdown`，即可回滚宿主配置。
+
+持久化验收使用唯一 ISBN `2147483001`：API 创建返回 HTTP 201，API 和 MySQL 表均
+确认恰好一条；普通 `docker compose down` 删除项目容器和网络后，两个命名卷的创建
+时间仍保持 `2026-08-08T14:39:55+08:00`。随后准确执行 `docker compose up -d` 返回
+0，重建后的 API 和 MySQL 均仍能找到该记录。最后通过 API 删除，复查结果为总图书
+12 条、临时 ISBN 0 条；全程未执行 `docker compose down -v`。
