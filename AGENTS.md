@@ -19,9 +19,7 @@ Express + MySQL。除非任务明确要求变更，否则保留现有用户流�
 - `docs/api.md`：兼容接口及错误响应约定。
 - `docs/refactor-plan.md`：当前债务、决策和完成证据。
 - `docs/container-deployment.md`：容器拓扑、生命周期、持久化、回滚和验收边界。
-- `scripts/container.*`：唯一的一键容器操作入口；默认停止不会删除数据卷。
-- `scripts/setup-docker-wsl.sh`：仅用于明确选择 WSL 部署时安装官方 Docker Engine；
-  必须先审计发行版、冲突包、代理、监听和现有 Docker 配置。
+- `compose.yaml`：唯一的容器部署接口；调用者只需要 `docker compose up -d`。
 
 ## 必须保持的规则
 
@@ -36,15 +34,17 @@ Express + MySQL。除非任务明确要求变更，否则保留现有用户流�
 9. 纯重构提交不要混入无关功能。
 10. 容器数据库默认不映射宿主机端口；secret 不写进 Compose 环境值或镜像层。
 11. 进程存活、数据库就绪、Compose 配置和真实运行状态必须分别验证。
-12. WSL 安装脚本不得自动卸载冲突包或删除 `/var/lib/docker`、
-    `/var/lib/containerd`；`docker` 组权限等同 WSL root，必须明确说明。
+12. Compose 必须自行完成随机 secret 初始化和应用构建，不能要求调用者先运行仓库
+    脚本或创建密码文件。
 
 ## 验证入口
 
 - `npm run check`：必跑的快速门禁，包含全仓 lint 和数据库无关测试。
 - `node --check server/index.js`：可选的后端入口语法检查。
-- `docker compose --env-file .env.docker config --quiet`：有 Docker 时验证 Compose
-  插值与模型，但不能代替镜像和运行态验证。
+- `docker compose config --quiet`：有 Docker 时验证 Compose 插值与模型，但不能
+  代替镜像和运行态验证。
+- `docker compose up -d`：容器部署任务明确授权时的唯一真实集成入口，会构建应用
+  镜像并启动 MySQL；执行前后必须记录实际容器、卷、健康和 HTTP 证据。
 - 真实数据库验证必须另外记录所用结构和环境，不能用单元测试代替。
 - 本机自动化不得执行 `npm run build`，除非任务明确放宽限制。
 
@@ -53,5 +53,5 @@ Express + MySQL。除非任务明确要求变更，否则保留现有用户流�
 执行数据库命令前，先确认真实服务、数据库、表和列。普通测试不得自动导入或
 修改 `other/librarymanagement.sql`；没有明确批准时，使用注入的假仓库测试。
 
-`scripts/container.* down` 必须保留命名卷和 secret。不得把 `down --volumes`、清空
-数据卷或重新导入 SQL 纳入普通停止、更新或回滚流程。
+`docker compose down` 必须保留命名卷和 secret。不得把 `down -v`、清空数据卷或
+重新导入 SQL 纳入普通停止、更新或回滚流程。

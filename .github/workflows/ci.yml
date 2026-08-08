@@ -25,10 +25,4 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare non-production Compose inputs
-        run: |
-          cp .env.docker.example .env.docker
-          mkdir -p .docker-secrets
-          printf 'ci-only-app-password' > .docker-secrets/db_app_password
-          printf 'ci-only-root-password' > .docker-secrets/db_root_password
-      - run: docker compose --env-file .env.docker config --quiet
+      - run: docker compose config --quiet

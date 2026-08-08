@@ -67,12 +67,12 @@
 ## 第二批：容器化一键部署（2026-08-08）
 
 - [x] 增加多阶段应用镜像，构建 Vue 后只安装生产依赖并以 `node` 用户运行。
-- [x] 增加 Compose 应用/MySQL 拓扑、随机文件型 secret、数据卷和日志轮转。
+- [x] 增加 Compose 应用/MySQL 拓扑、卷内随机 secret、数据卷和日志轮转。
 - [x] MySQL 初始化完成后再启动应用；增加数据库感知的 `/health/ready`。
 - [x] 生产进程同源托管 Vue 静态文件，保留 `/api` 和健康接口的 JSON 404 边界。
-- [x] 增加 Windows/POSIX 一键启动、验证、停止、状态、日志和应用镜像回滚动作。
+- [x] 将部署接口收口为 `docker compose up -d`，不再要求仓库脚本或本地密码文件。
 - [x] 增加不依赖 Docker 的交付资产测试，以及 CI Compose 配置解析门禁。
-- [x] 增加 WSL Docker Engine 官方源安装脚本，并接入本机 `12334` 拉取/构建代理。
+- [x] 在 Compose 中接入本机 `12334` 构建代理，并让普通 `up -d` 始终构建当前代码。
 - [x] 将重构分支推送到 GitHub，并在 WSL 原生 ext4 文件系统完成独立克隆和预检。
 - [ ] 在具备 Docker Engine 的机器上完成镜像构建和真实容器启动。
 - [ ] 抽查页面、就绪接口和样例图书 API，并验证写入数据经过停止/重启后仍存在。
@@ -83,19 +83,16 @@ Buildx 0.36.1 和 Compose 5.4.0。Docker 守护进程通过本机 `12334` HTTP �
 拉取并运行 `hello-world`；新 WSL 会话可直接访问 Docker，执行前后的 `docker ps`
 均未发现项目容器。
 
-当前证据：`npm run check` 通过，共执行 30 个测试；POSIX Shell 语法检查通过；
+上一版证据：`npm run check` 通过，共执行 30 个测试；
 Compose Specification 提交 `11296e3` 的官方 JSON Schema 校验继续通过（Schema
 SHA-256：`73ca5878c77570ba222a558016c7b3c6770ba5f3377786593e32180666512f8f`）。真实
-Compose CLI 已完成默认配置和 `host + 127.0.0.1:12334` 构建代理配置的变量展开与
-模型归一化。WSL secret 来源解析到 Linux 文件系统，实测目录权限 `700`、文件权限
-`600`。
+Compose CLI 已完成 `host + 127.0.0.1:12334` 构建代理配置的变量展开与模型归一化。
 
 分支 `refactor/engineering-baseline` 已推送到 `origin`，并通过进程级 Git HTTPS 代理
 克隆到 `/home/ll/src/librarymanagement`；该路径位于 WSL ext4 根文件系统。原生副本
-执行 `container.sh prepare` 时，Docker 与 npm 依赖源均通过 `127.0.0.1:12334`
-可达，执行前后均无项目容器或命名卷。已在不构建的前提下预拉取固定基础镜像：
+Docker 与 npm 依赖源均通过 `127.0.0.1:12334` 可达。已预拉取固定基础镜像：
 `node:22.23.1-bookworm-slim` 摘要
 `sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3`，
 `mysql:8.4.11` 摘要
 `sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb`。
-受本仓库构建限制约束，项目镜像构建、应用/MySQL 启动及运行态验收尚未执行。
+当前纯 Compose 接口的真实构建、应用/MySQL 启动及运行态证据将在本批次完成后更新。

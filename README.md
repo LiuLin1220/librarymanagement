@@ -20,9 +20,8 @@
 
 ## 容器一键部署
 
-Windows 推荐把仓库直接克隆到 Ubuntu WSL 2 的 Linux 文件系统，不要把
-`/mnt/c` 下的 Windows 工作区作为部署目录。当前重构分支可通过本机 `12334`
-代理克隆：
+唯一启动入口是 `compose.yaml`。Windows 推荐把仓库直接克隆到 Ubuntu WSL 2 的
+Linux 文件系统，不要把 `/mnt/c` 下的 Windows 工作区作为部署目录：
 
 ```sh
 mkdir -p "$HOME/src" && \
@@ -30,51 +29,24 @@ HTTPS_PROXY=http://127.0.0.1:12334 git clone --branch refactor/engineering-basel
 cd "$HOME/src/librarymanagement"
 ```
 
-以后同步该分支：
+确保 WSL 内的 Docker Engine 和 Compose plugin 已启动，且 Docker 守护进程可以
+通过 `http://127.0.0.1:12334` 拉取镜像。然后直接执行：
 
 ```sh
-cd "$HOME/src/librarymanagement" && \
-HTTPS_PROXY=http://127.0.0.1:12334 git pull --ff-only
+docker compose up -d
 ```
 
-首次安装 WSL 内的 Docker Engine：
+不需要先创建 `.env`、密码文件或运行仓库脚本。Compose 会自动完成以下工作：
 
-```sh
-DOCKER_PROXY_URL=http://127.0.0.1:12334 sh scripts/setup-docker-wsl.sh
-```
-
-重新打开 WSL 终端并回到 `~/src/librarymanagement` 后启动项目：
-
-```sh
-sh scripts/container.sh up
-```
-
-如果只想生成本地部署配置并校验 Compose，不构建镜像、不启动容器：
-
-```sh
-sh scripts/container.sh prepare
-```
-
-已安装并启动 Docker Desktop 后，在仓库根目录执行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\container.ps1 up
-```
-
-脚本会生成本地随机数据库 secret、解析 Compose、保留上一版应用镜像、构建并
-启动 Vue/Express 与 MySQL，等待健康检查后抽查页面和图书接口。默认访问地址是
-`http://localhost:8080`，MySQL 不向宿主机开放端口。
-
-Linux、macOS 或 WSL 使用：
-
-```sh
-sh scripts/container.sh up
-```
+- 每次根据当前代码构建 Vue/Express 应用镜像；构建阶段默认使用 12334 代理。
+- 首次启动时在 Docker 命名卷中生成随机数据库密码，不把密码写入仓库或环境值。
+- 初始化 MySQL 数据卷并导入 `other/librarymanagement.sql`。
+- 等 MySQL 健康后启动应用，只向宿主机开放 `127.0.0.1:8080`。
 
 停止服务但保留数据库卷：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\container.ps1 down
+```sh
+docker compose down
 ```
 
 详细影响、回滚和删除数据前的警告见
@@ -146,8 +118,7 @@ server/config/           环境配置和连接池
 server/routes/           HTTP 输入与响应
 server/repositories/     SQL 和字段映射
 test/server/             数据库无关测试
-scripts/container.*      容器启动、停止、验证和应用镜像回滚
-compose.yaml             应用、数据库、健康检查、secret 和数据卷
+compose.yaml             唯一部署入口、应用、数据库、secret、健康检查和数据卷
 other/librarymanagement.sql  数据库结构与样例数据
 ```
 

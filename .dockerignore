@@ -1,6 +1,5 @@
 .git
 .github
-.docker-secrets
 .env
 .env.*
 node_modules
@@ -9,7 +8,6 @@ coverage
 docs
 images
 other
-scripts
 test
 *.md
 npm-debug.log*

@@ -21,76 +21,51 @@ test('runtime image is multi-stage, production-only and non-root', () => {
   assert.match(dockerfile, /CMD \["node", "server\/index\.js"\]/)
 })
 
-test('compose waits for initialized MySQL and keeps secrets out of environment values', () => {
+test('docker compose up -d is the complete deployment interface', () => {
   const compose = read('compose.yaml')
-  const databaseBlock = compose.match(/\n {2}db:\n[\s\S]*?(?=\nvolumes:)/)
+  const readme = read('README.md')
+
+  assert.match(compose, /^name: librarymanagement/m)
+  assert.match(compose, /pull_policy: build/)
+  assert.match(compose, /network: \$\{BUILD_NETWORK-host\}/)
+  assert.match(compose, /HTTP_PROXY: \$\{BUILD_HTTP_PROXY-http:\/\/127\.0\.0\.1:12334\}/)
+  assert.match(readme, /docker compose up -d/)
+  assert.doesNotMatch(readme, /scripts\/container/)
+})
+
+test('compose generates persistent file-backed database secrets without host preparation', () => {
+  const compose = read('compose.yaml')
+  const initializerBlock = compose.match(/\n {2}secret-init:\n[\s\S]*?(?=\n {2}db:)/)
+
+  assert.ok(initializerBlock, 'secret initializer service must exist')
+  assert.match(initializerBlock[0], /alpine:3\.23\.5/)
+  assert.match(initializerBlock[0], /\/dev\/urandom/)
+  assert.match(initializerBlock[0], /deployment-secrets:\/run\/generated-secrets/)
+  assert.match(compose, /condition: service_completed_successfully/)
+  assert.match(compose, /deployment-secrets:\/run\/secrets:ro/)
+  assert.match(compose, /DB_PASSWORD_FILE: \/run\/secrets\/db_app_password/)
+  assert.match(compose, /MYSQL_ROOT_PASSWORD_FILE: \/run\/secrets\/db_root_password/)
+  assert.doesNotMatch(compose, /^secrets:/m)
+  assert.doesNotMatch(compose, /\.docker-secrets/)
+})
+
+test('database stays internal, waits for initialization and persists in a named volume', () => {
+  const compose = read('compose.yaml')
+  const databaseBlock = compose.match(/\n {2}db:\n[\s\S]*?(?=\n {2}app:)/)
 
   assert.ok(databaseBlock, 'database service must exist')
   assert.doesNotMatch(databaseBlock[0], /^ {4}ports:/m)
+  assert.match(databaseBlock[0], /condition: service_completed_successfully/)
+  assert.match(databaseBlock[0], /db-data:\/var\/lib\/mysql/)
+  assert.match(databaseBlock[0], /librarymanagement\.sql:\/docker-entrypoint-initdb\.d/)
   assert.match(compose, /condition: service_healthy/)
-  assert.match(compose, /network: \$\{BUILD_NETWORK:-default\}/)
-  assert.match(compose, /HTTP_PROXY: \$\{BUILD_HTTP_PROXY:-\}/)
-  assert.match(compose, /file: \$\{DOCKER_SECRET_DIRECTORY:-\.docker-secrets\}\/db_app_password/)
-  assert.match(compose, /DB_PASSWORD_FILE: \/run\/secrets\/db_app_password/)
-  assert.match(compose, /MYSQL_ROOT_PASSWORD_FILE: \/run\/secrets\/db_root_password/)
-  assert.match(compose, /db-data:\/var\/lib\/mysql/)
-  assert.match(compose, /librarymanagement\.sql:\/docker-entrypoint-initdb\.d/)
   assert.match(compose, /127\.0\.0\.1.*8080.*3001/)
 })
 
-test('one-click scripts validate Compose, wait for health and retain rollback paths', () => {
-  for (const script of ['scripts/container.ps1', 'scripts/container.sh']) {
-    const source = read(script)
-    const discoveryPosition = source.indexOf('docker ps')
-    const composePosition = script.endsWith('.ps1')
-      ? source.indexOf("Invoke-Compose -Arguments @('config', '--quiet')")
-      : source.indexOf('compose config --quiet')
+test('documentation keeps ordinary stop separate from destructive volume deletion', () => {
+  const deploymentGuide = read('docs/container-deployment.md')
 
-    assert.match(source, /prepare/)
-    assert.match(source, /config.*--quiet/s)
-    assert.match(source, /--wait/)
-    assert.match(source, /health\/ready/)
-    assert.match(source, /api\/get_books/)
-    assert.match(source, /rollback/i)
-    assert.ok(discoveryPosition > 0 && discoveryPosition < composePosition)
-  }
-})
-
-test('deployment verification accepts an empty book collection as a valid JSON array', () => {
-  const posix = read('scripts/container.sh')
-  const powershell = read('scripts/container.ps1')
-
-  assert.match(posix, /\\\[\*\\\]/)
-  assert.doesNotMatch(posix, /Seeded book API returned no recognizable records/)
-  assert.match(powershell, /StartsWith\('\['\).*EndsWith\('\]'\)/s)
-  assert.doesNotMatch(powershell, /Count -lt 1/)
-})
-
-test('prepare validates deployment inputs without building or starting containers', () => {
-  const posix = read('scripts/container.sh')
-  const powershell = read('scripts/container.ps1')
-
-  assert.match(posix, /prepare\|up\) initialize_deployment_files/)
-  assert.match(posix, /prepare\)[\s\S]*No image was built and no container was started/)
-  assert.match(powershell, /'prepare', 'up'/)
-  assert.match(powershell, /'prepare' \{[\s\S]*No image was built and no container was started/)
-  assert.match(posix, /XDG_STATE_HOME.*\.local\/state.*librarymanagement\/secrets/)
-  assert.match(posix, /WSL secrets must be stored in the Linux filesystem/)
-  assert.match(posix, /prepare\|up\) configure_wsl_build_proxy/)
-  assert.match(posix, /deployment_value BUILD_HTTP_PROXY/)
-  assert.match(posix, /registry\.npmjs\.org/)
-})
-
-test('WSL setup uses the official repository, verifies its key and checks containers first', () => {
-  const source = read('scripts/setup-docker-wsl.sh')
-  const psPosition = source.indexOf('docker ps')
-  const runPosition = source.indexOf('docker run --rm hello-world')
-
-  assert.match(source, /download\.docker\.com\/linux\/ubuntu/)
-  assert.match(source, /9DC858229FC7DD38854AE2D88D81803C0EBFCD88/)
-  assert.match(source, /docker-compose-plugin/)
-  assert.match(source, /proxy_port=.*DOCKER_PROXY_URL/s)
-  assert.match(source, /numeric port/)
-  assert.match(source, /systemctl enable --now containerd\.service docker\.service/)
-  assert.ok(psPosition > 0 && psPosition < runPosition)
+  assert.match(deploymentGuide, /docker compose down/)
+  assert.match(deploymentGuide, /docker compose down -v/)
+  assert.match(deploymentGuide, /不可恢复|不可逆/)
 })

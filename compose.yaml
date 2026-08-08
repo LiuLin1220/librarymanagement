@@ -1,83 +1,52 @@
+name: librarymanagement
+
 services:
-  app:
-    image: ${APP_IMAGE:-librarymanagement-app:local}
-    build:
-      context: .
-      dockerfile: Dockerfile
-      network: ${BUILD_NETWORK:-default}
-      args:
-        VUE_APP_API_BASE_URL: /api
-        HTTP_PROXY: ${BUILD_HTTP_PROXY:-}
-        HTTPS_PROXY: ${BUILD_HTTPS_PROXY:-}
-        NO_PROXY: ${BUILD_NO_PROXY:-localhost,127.0.0.1,::1}
-        http_proxy: ${BUILD_HTTP_PROXY:-}
-        https_proxy: ${BUILD_HTTPS_PROXY:-}
-        no_proxy: ${BUILD_NO_PROXY:-localhost,127.0.0.1,::1}
-    init: true
+  secret-init:
+    image: alpine:3.23.5
+    pull_policy: missing
+    user: "0:0"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        for secret_name in db_app_password db_root_password; do
+          secret_file="/run/generated-secrets/$${secret_name}"
+          if [ ! -f "$${secret_file}" ] || ! grep -Eq '^[0-9a-f]{64}$$' "$${secret_file}"; then
+            temporary_file="$${secret_file}.tmp"
+            od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > "$${temporary_file}"
+            mv "$${temporary_file}" "$${secret_file}"
+          fi
+          chmod 0444 "$${secret_file}"
+        done
     read_only: true
-    tmpfs:
-      - /tmp:size=16m,mode=1777
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
-    environment:
-      NODE_ENV: production
-      PORT: "3001"
-      STATIC_DIRECTORY: /app/dist
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
-      DB_HOST: db
-      DB_PORT: "3306"
-      DB_USER: ${MYSQL_USER:-library_app}
-      DB_PASSWORD_FILE: /run/secrets/db_app_password
-      DB_NAME: ${MYSQL_DATABASE:-librarymanagement}
-      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
-    secrets:
-      - db_app_password
-    ports:
-      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8080}:3001"
-    depends_on:
-      db:
-        condition: service_healthy
-        restart: true
-    healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - >-
-          fetch('http://127.0.0.1:' + process.env.PORT + '/health/ready')
-          .then(response => { if (!response.ok) process.exit(1) })
-          .catch(() => process.exit(1))
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
-    restart: unless-stopped
-    stop_grace_period: 15s
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: "3"
+    volumes:
+      - deployment-secrets:/run/generated-secrets
+    restart: "no"
 
   db:
-    image: ${MYSQL_IMAGE:-mysql:8.4.11}
+    image: ${MYSQL_IMAGE-mysql:8.4.11}
+    pull_policy: missing
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
       - --default-time-zone=+08:00
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-librarymanagement}
-      MYSQL_USER: ${MYSQL_USER:-library_app}
+      MYSQL_DATABASE: ${MYSQL_DATABASE-librarymanagement}
+      MYSQL_USER: ${MYSQL_USER-library_app}
       MYSQL_PASSWORD_FILE: /run/secrets/db_app_password
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
       MYSQL_INITDB_SKIP_TZINFO: "1"
-    secrets:
-      - db_app_password
-      - db_root_password
+    depends_on:
+      secret-init:
+        condition: service_completed_successfully
     volumes:
       - db-data:/var/lib/mysql
+      - deployment-secrets:/run/secrets:ro
       - ./other/librarymanagement.sql:/docker-entrypoint-initdb.d/10-librarymanagement.sql:ro
     healthcheck:
       test:
@@ -99,11 +68,71 @@ services:
         max-size: 10m
         max-file: "3"
 
+  app:
+    image: librarymanagement-app:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: ${BUILD_NETWORK-host}
+      args:
+        VUE_APP_API_BASE_URL: /api
+        HTTP_PROXY: ${BUILD_HTTP_PROXY-http://127.0.0.1:12334}
+        HTTPS_PROXY: ${BUILD_HTTPS_PROXY-http://127.0.0.1:12334}
+        NO_PROXY: ${BUILD_NO_PROXY-localhost,127.0.0.1,::1}
+        http_proxy: ${BUILD_HTTP_PROXY-http://127.0.0.1:12334}
+        https_proxy: ${BUILD_HTTPS_PROXY-http://127.0.0.1:12334}
+        no_proxy: ${BUILD_NO_PROXY-localhost,127.0.0.1,::1}
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      STATIC_DIRECTORY: /app/dist
+      CORS_ORIGIN: ${CORS_ORIGIN-http://localhost:8080}
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: ${MYSQL_USER-library_app}
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      DB_NAME: ${MYSQL_DATABASE-librarymanagement}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT-10}
+    depends_on:
+      secret-init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+        restart: true
+    volumes:
+      - deployment-secrets:/run/secrets:ro
+    ports:
+      - "${APP_HOST-127.0.0.1}:${APP_PORT-8080}:3001"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:' + process.env.PORT + '/health/ready')
+          .then(response => { if (!response.ok) process.exit(1) })
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
 volumes:
   db-data:
-
-secrets:
-  db_app_password:
-    file: ${DOCKER_SECRET_DIRECTORY:-.docker-secrets}/db_app_password
-  db_root_password:
-    file: ${DOCKER_SECRET_DIRECTORY:-.docker-secrets}/db_root_password
+  deployment-secrets:
