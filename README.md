@@ -20,13 +20,30 @@
 
 ## 容器一键部署
 
-Windows 推荐直接使用现有 Ubuntu WSL 2。首次安装 WSL 内的 Docker Engine：
+Windows 推荐把仓库直接克隆到 Ubuntu WSL 2 的 Linux 文件系统，不要把
+`/mnt/c` 下的 Windows 工作区作为部署目录。当前重构分支可通过本机 `12334`
+代理克隆：
+
+```sh
+mkdir -p "$HOME/src" && \
+HTTPS_PROXY=http://127.0.0.1:12334 git clone --branch refactor/engineering-baseline --single-branch https://github.com/LiuLin1220/librarymanagement.git "$HOME/src/librarymanagement" && \
+cd "$HOME/src/librarymanagement"
+```
+
+以后同步该分支：
+
+```sh
+cd "$HOME/src/librarymanagement" && \
+HTTPS_PROXY=http://127.0.0.1:12334 git pull --ff-only
+```
+
+首次安装 WSL 内的 Docker Engine：
 
 ```sh
 DOCKER_PROXY_URL=http://127.0.0.1:12334 sh scripts/setup-docker-wsl.sh
 ```
 
-重新打开 WSL 终端后启动项目：
+重新打开 WSL 终端并回到 `~/src/librarymanagement` 后启动项目：
 
 ```sh
 sh scripts/container.sh up

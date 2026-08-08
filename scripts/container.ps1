@@ -74,6 +74,11 @@ function Assert-Docker {
   if ($LASTEXITCODE -ne 0) {
     throw 'Docker Compose v2 is required.'
   }
+
+  & docker ps
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Docker container discovery failed.'
+  }
 }
 
 function Invoke-Compose {
@@ -130,9 +135,15 @@ function Test-Deployment {
     throw "Frontend returned HTTP $($page.StatusCode)."
   }
 
-  $books = Invoke-RestMethod -Uri "$baseUrl/api/get_books" -TimeoutSec 10
-  if (@($books).Count -lt 1) {
-    throw 'Seeded book API returned an empty collection.'
+  $booksResponse = Invoke-WebRequest -Uri "$baseUrl/api/get_books" -UseBasicParsing -TimeoutSec 10
+  $booksContent = $booksResponse.Content.Trim()
+  if (-not ($booksContent.StartsWith('[') -and $booksContent.EndsWith(']'))) {
+    throw 'Book API did not return a JSON array.'
+  }
+  try {
+    $null = ConvertFrom-Json -InputObject $booksContent
+  } catch {
+    throw 'Book API returned malformed JSON.'
   }
 
   Write-Host "Deployment verified: $baseUrl"

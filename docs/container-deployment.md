@@ -26,6 +26,23 @@
 Desktop。安装脚本只支持官方已覆盖的 Ubuntu 版本，并会拒绝未知发行版、非 amd64、
 缺少 systemd、缺少免密 sudo、冲突软件包或异常 Docker 签名密钥。
 
+部署工作区应直接放在 WSL 的 Linux 文件系统。首次克隆当前重构分支：
+
+```sh
+mkdir -p "$HOME/src" && \
+HTTPS_PROXY=http://127.0.0.1:12334 git clone --branch refactor/engineering-baseline --single-branch https://github.com/LiuLin1220/librarymanagement.git "$HOME/src/librarymanagement" && \
+cd "$HOME/src/librarymanagement"
+```
+
+目标目录已存在时不要再次克隆，改用快进更新：
+
+```sh
+cd "$HOME/src/librarymanagement" && \
+HTTPS_PROXY=http://127.0.0.1:12334 git pull --ff-only
+```
+
+这两条命令只为当前进程设置 Git HTTPS 代理，不修改全局 Git 配置。
+
 当前网络如果需要 Hiddify，可把 Windows 回环端口 `12334` 作为 HTTP 代理。脚本只
 接受无凭据的本机回环代理，并把它配置给 WSL 内的 Docker 服务：
 
@@ -36,8 +53,8 @@ DOCKER_PROXY_URL=http://127.0.0.1:12334 sh scripts/setup-docker-wsl.sh
 该操作会增加 Docker 官方 APT 源和签名密钥，安装 Docker Engine、CLI、containerd、
 Buildx 与 Compose plugin，启动 `docker`/`containerd` systemd 服务，并把当前 WSL
 用户加入 `docker` 组。`docker` 组在 WSL 内拥有等同 root 的控制能力。脚本完成后
-重新打开 WSL 终端。可以先生成本地配置并只校验 Compose；该命令不会构建镜像或
-启动容器：
+重新打开 WSL 终端。可以先生成本地配置，检查 Docker/Compose 和 `12334` 是否能
+访问 Docker、npm 依赖源，并校验 Compose；该命令不会构建镜像或启动容器：
 
 ```sh
 sh scripts/container.sh prepare
@@ -80,13 +97,13 @@ sh scripts/container.sh up
   把绝对路径写入 `.env.docker`，并把目录和文件权限收紧为 `700`/`600`。
 - 非 WSL：`.docker-secrets/` 下的两份随机数据库密码。
 
-WSL 仓库通常位于 `/mnt/c`，这里的 Windows 挂载权限不能可靠体现 Linux 的
-`chmod 600`，所以脚本拒绝把 WSL 密钥留在 `/mnt` 下。旧版若已在仓库生成密钥，
-脚本会先原样复制到 WSL 文件系统且保留旧文件；确认没有容器继续使用旧路径后，
-再显式清理仓库中的旧副本。
+`/mnt/c` 等 Windows 挂载目录不能可靠体现 Linux 的 `chmod 600`，也不作为推荐的
+部署工作区，所以脚本拒绝把 WSL 密钥留在 `/mnt` 下。旧版若已在 Windows 工作区
+生成密钥，脚本会先原样复制到 WSL 文件系统且保留旧文件；确认没有容器继续使用
+旧路径后，再显式清理仓库中的旧副本。
 
 随后脚本依次执行 Compose 配置解析、保留上一版应用镜像、构建/启动、等待容器
-健康，并抽查页面、数据库就绪状态和带样例数据的图书接口。全部通过后，访问
+健康，并抽查页面、数据库就绪状态和图书数组接口。全部通过后，访问
 `http://localhost:8080`。
 
 ## 常用动作
@@ -175,7 +192,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\container.ps1 rollback
 2. `docker compose --env-file .env.docker config --quiet`：验证变量插值和 Compose
    模型；CI 使用非生产临时 secret 执行这一层。
 3. `container.ps1 up` 或 `container.sh up`：实际拉取/构建、启动、健康检查和 HTTP
-   抽查。
+  抽查；空图书数组也是合法响应，不会把业务数据为空误判为部署故障。
 4. 手动写入、停止、重启和清理测试记录：验证持久化，不在默认脚本中修改数据。
 
 静态配置通过不能代替第 3、4 层的真实容器证据。

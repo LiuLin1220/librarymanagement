@@ -26,10 +26,22 @@ cleanup() {
 
 trap cleanup EXIT HUP INT TERM
 
-case "$DOCKER_PROXY_URL" in
-  http://127.0.0.1:*|http://localhost:*) ;;
-  *) fail 'DOCKER_PROXY_URL must be a loopback HTTP proxy without credentials.' ;;
-esac
+validate_loopback_http_proxy() {
+  proxy_url=$1
+  case "$proxy_url" in
+    http://127.0.0.1:*) proxy_port=${proxy_url#http://127.0.0.1:} ;;
+    http://localhost:*) proxy_port=${proxy_url#http://localhost:} ;;
+    *) fail 'DOCKER_PROXY_URL must be a loopback HTTP proxy without credentials.' ;;
+  esac
+  case "$proxy_port" in
+    ''|*[!0-9]*) fail 'DOCKER_PROXY_URL must contain a numeric port.' ;;
+  esac
+  if [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
+    fail 'DOCKER_PROXY_URL port must be between 1 and 65535.'
+  fi
+}
+
+validate_loopback_http_proxy "$DOCKER_PROXY_URL"
 
 if ! grep -qi microsoft /proc/sys/kernel/osrelease; then
   fail 'This installer only supports Ubuntu running under WSL 2.'

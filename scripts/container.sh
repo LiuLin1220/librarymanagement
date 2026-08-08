@@ -18,6 +18,10 @@ compose() {
   docker compose --env-file "$ENV_FILE" "$@"
 }
 
+http_request() {
+  curl --fail --silent --show-error --connect-timeout 5 --max-time 20 "$@"
+}
+
 random_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -base64 32 | tr '/+' '_-' | tr -d '=\n'
@@ -179,7 +183,7 @@ probe_url() {
 
 verify_deployment() {
   base_url=$(probe_url)
-  health=$(curl --fail --silent --show-error "$base_url/health/ready")
+  health=$(http_request "$base_url/health/ready")
   case "$health" in
     *'"status":"ready"'*) ;;
     *)
@@ -188,12 +192,12 @@ verify_deployment() {
       ;;
   esac
 
-  curl --fail --silent --show-error --output /dev/null "$base_url/"
-  books=$(curl --fail --silent --show-error "$base_url/api/get_books")
+  http_request --output /dev/null "$base_url/"
+  books=$(http_request "$base_url/api/get_books")
   case "$books" in
-    *'"isbn"'*) ;;
+    \[*\]) ;;
     *)
-      printf '%s\n' 'Seeded book API returned no recognizable records.' >&2
+      printf '%s\n' 'Book API did not return a JSON array.' >&2
       exit 1
       ;;
   esac
@@ -213,19 +217,82 @@ backup_current_image() {
   fi
 }
 
+validate_loopback_http_proxy() {
+  proxy_url=$1
+  case "$proxy_url" in
+    http://127.0.0.1:*) proxy_port=${proxy_url#http://127.0.0.1:} ;;
+    http://localhost:*) proxy_port=${proxy_url#http://localhost:} ;;
+    *)
+      printf 'WSL_PROXY_URL must be a loopback HTTP proxy without credentials: %s\n' "$proxy_url" >&2
+      exit 1
+      ;;
+  esac
+  case "$proxy_port" in
+    ''|*[!0-9]*)
+      printf 'WSL proxy port is not valid: %s\n' "$proxy_port" >&2
+      exit 1
+      ;;
+  esac
+  if [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
+    printf 'WSL proxy port is outside 1-65535: %s\n' "$proxy_port" >&2
+    exit 1
+  fi
+}
+
+assert_build_proxy_reachable() {
+  proxy_url=$1
+  for probe_target in \
+    https://download.docker.com/linux/ubuntu/ \
+    https://registry.npmjs.org/; do
+    if ! http_request --proxy "$proxy_url" --output /dev/null "$probe_target"; then
+      printf 'Build dependency source is unavailable through the configured proxy: %s\n' "$probe_target" >&2
+      exit 1
+    fi
+  done
+}
+
 configure_wsl_build_proxy() {
   if ! is_wsl; then
     return
   fi
-  if [ -n "${BUILD_HTTP_PROXY:-}" ]; then
+
+  configured_http_proxy=${BUILD_HTTP_PROXY:-}
+  if [ -z "$configured_http_proxy" ]; then
+    configured_http_proxy=$(deployment_value BUILD_HTTP_PROXY '')
+  fi
+  if [ -n "$configured_http_proxy" ]; then
+    configured_https_proxy=${BUILD_HTTPS_PROXY:-}
+    if [ -z "$configured_https_proxy" ]; then
+      configured_https_proxy=$(deployment_value BUILD_HTTPS_PROXY "$configured_http_proxy")
+    fi
+    configured_network=${BUILD_NETWORK:-}
+    if [ -z "$configured_network" ]; then
+      configured_network=$(deployment_value BUILD_NETWORK default)
+    fi
+    case "$configured_http_proxy" in
+      http://127.0.0.1:*|http://localhost:*)
+        validate_loopback_http_proxy "$configured_http_proxy"
+        case "$configured_network" in
+          default|host) configured_network=host ;;
+          *)
+            printf '%s\n' 'A loopback build proxy requires BUILD_NETWORK=host under WSL.' >&2
+            exit 1
+            ;;
+        esac
+        ;;
+    esac
+    assert_build_proxy_reachable "$configured_http_proxy"
+    BUILD_NETWORK=$configured_network
+    BUILD_HTTP_PROXY=$configured_http_proxy
+    BUILD_HTTPS_PROXY=$configured_https_proxy
+    BUILD_NO_PROXY=${BUILD_NO_PROXY:-$(deployment_value BUILD_NO_PROXY 'localhost,127.0.0.1,::1')}
+    export BUILD_NETWORK BUILD_HTTP_PROXY BUILD_HTTPS_PROXY BUILD_NO_PROXY
+    printf '%s\n' 'Using the explicitly configured WSL build proxy.'
     return
   fi
-  if ! curl --proxy "$WSL_PROXY_URL" --fail --silent --show-error \
-    --output /dev/null --connect-timeout 5 --max-time 15 \
-    https://download.docker.com/linux/ubuntu/; then
-    printf 'WSL proxy is unavailable: %s\n' "$WSL_PROXY_URL" >&2
-    exit 1
-  fi
+
+  validate_loopback_http_proxy "$WSL_PROXY_URL"
+  assert_build_proxy_reachable "$WSL_PROXY_URL"
 
   BUILD_NETWORK=host
   BUILD_HTTP_PROXY=$WSL_PROXY_URL
@@ -247,6 +314,10 @@ if ! docker version --format '{{.Server.Version}}' >/dev/null 2>&1; then
 fi
 if ! docker compose version >/dev/null 2>&1; then
   printf '%s\n' 'Docker Compose v2 is required.' >&2
+  exit 1
+fi
+if ! docker ps; then
+  printf '%s\n' 'Docker container discovery failed.' >&2
   exit 1
 fi
 case "$ACTION" in
@@ -271,7 +342,7 @@ if [ "$WAIT_TIMEOUT_SECONDS" -lt 30 ] || [ "$WAIT_TIMEOUT_SECONDS" -gt 900 ]; th
 fi
 
 case "$ACTION" in
-  up|verify|rollback)
+  prepare|up|verify|rollback)
     if ! command -v curl >/dev/null 2>&1; then
       printf '%s\n' 'curl is required for deployment verification.' >&2
       exit 1
@@ -279,9 +350,9 @@ case "$ACTION" in
     ;;
 esac
 
-if [ "$ACTION" = 'up' ]; then
-  configure_wsl_build_proxy
-fi
+case "$ACTION" in
+  prepare|up) configure_wsl_build_proxy ;;
+esac
 
 compose config --quiet
 

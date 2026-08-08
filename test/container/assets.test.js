@@ -41,6 +41,10 @@ test('compose waits for initialized MySQL and keeps secrets out of environment v
 test('one-click scripts validate Compose, wait for health and retain rollback paths', () => {
   for (const script of ['scripts/container.ps1', 'scripts/container.sh']) {
     const source = read(script)
+    const discoveryPosition = source.indexOf('docker ps')
+    const composePosition = script.endsWith('.ps1')
+      ? source.indexOf("Invoke-Compose -Arguments @('config', '--quiet')")
+      : source.indexOf('compose config --quiet')
 
     assert.match(source, /prepare/)
     assert.match(source, /config.*--quiet/s)
@@ -48,7 +52,18 @@ test('one-click scripts validate Compose, wait for health and retain rollback pa
     assert.match(source, /health\/ready/)
     assert.match(source, /api\/get_books/)
     assert.match(source, /rollback/i)
+    assert.ok(discoveryPosition > 0 && discoveryPosition < composePosition)
   }
+})
+
+test('deployment verification accepts an empty book collection as a valid JSON array', () => {
+  const posix = read('scripts/container.sh')
+  const powershell = read('scripts/container.ps1')
+
+  assert.match(posix, /\\\[\*\\\]/)
+  assert.doesNotMatch(posix, /Seeded book API returned no recognizable records/)
+  assert.match(powershell, /StartsWith\('\['\).*EndsWith\('\]'\)/s)
+  assert.doesNotMatch(powershell, /Count -lt 1/)
 })
 
 test('prepare validates deployment inputs without building or starting containers', () => {
@@ -61,6 +76,9 @@ test('prepare validates deployment inputs without building or starting container
   assert.match(powershell, /'prepare' \{[\s\S]*No image was built and no container was started/)
   assert.match(posix, /XDG_STATE_HOME.*\.local\/state.*librarymanagement\/secrets/)
   assert.match(posix, /WSL secrets must be stored in the Linux filesystem/)
+  assert.match(posix, /prepare\|up\) configure_wsl_build_proxy/)
+  assert.match(posix, /deployment_value BUILD_HTTP_PROXY/)
+  assert.match(posix, /registry\.npmjs\.org/)
 })
 
 test('WSL setup uses the official repository, verifies its key and checks containers first', () => {
@@ -71,6 +89,8 @@ test('WSL setup uses the official repository, verifies its key and checks contai
   assert.match(source, /download\.docker\.com\/linux\/ubuntu/)
   assert.match(source, /9DC858229FC7DD38854AE2D88D81803C0EBFCD88/)
   assert.match(source, /docker-compose-plugin/)
+  assert.match(source, /proxy_port=.*DOCKER_PROXY_URL/s)
+  assert.match(source, /numeric port/)
   assert.match(source, /systemctl enable --now containerd\.service docker\.service/)
   assert.ok(psPosition > 0 && psPosition < runPosition)
 })

@@ -82,7 +82,7 @@ Buildx 0.36.1 和 Compose 5.4.0。Docker 守护进程通过本机 `12334` HTTP �
 拉取并运行 `hello-world`；新 WSL 会话可直接访问 Docker，执行前后的 `docker ps`
 均未发现项目容器。
 
-当前证据：`npm run check` 通过，共执行 29 个测试；POSIX Shell 语法检查通过；
+当前证据：`npm run check` 通过，共执行 30 个测试；POSIX Shell 语法检查通过；
 Compose Specification 提交 `11296e3` 的官方 JSON Schema 校验继续通过（Schema
 SHA-256：`73ca5878c77570ba222a558016c7b3c6770ba5f3377786593e32180666512f8f`）。真实
 Compose CLI 已完成默认配置和 `host + 127.0.0.1:12334` 构建代理配置的变量展开与
