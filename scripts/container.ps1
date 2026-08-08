@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('up', 'down', 'status', 'logs', 'verify', 'rollback')]
+  [ValidateSet('prepare', 'up', 'down', 'status', 'logs', 'verify', 'rollback')]
   [string] $Action = 'up',
 
   [ValidateRange(30, 900)]
@@ -55,7 +55,7 @@ function Assert-DeploymentFiles {
       $RootSecretFile
     )) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
-      throw "Deployment file is missing: $requiredFile. Run the 'up' action first."
+      throw "Deployment file is missing: $requiredFile. Run the 'prepare' or 'up' action first."
     }
   }
 }
@@ -162,8 +162,9 @@ function Backup-CurrentImage {
 
 Set-Location -LiteralPath $ProjectRoot
 Assert-Docker
+$env:DOCKER_SECRET_DIRECTORY = $SecretDirectory
 
-if ($Action -eq 'up') {
+if ($Action -in @('prepare', 'up')) {
   Initialize-DeploymentFiles
 } else {
   Assert-DeploymentFiles
@@ -173,6 +174,9 @@ Invoke-Compose -Arguments @('config', '--quiet')
 
 try {
   switch ($Action) {
+    'prepare' {
+      Write-Host 'Deployment files are ready and the Compose configuration is valid. No image was built and no container was started.'
+    }
     'up' {
       Backup-CurrentImage
       Invoke-Compose -Arguments @(

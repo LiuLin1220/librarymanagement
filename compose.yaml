@@ -4,8 +4,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: ${BUILD_NETWORK:-default}
       args:
         VUE_APP_API_BASE_URL: /api
+        HTTP_PROXY: ${BUILD_HTTP_PROXY:-}
+        HTTPS_PROXY: ${BUILD_HTTPS_PROXY:-}
+        NO_PROXY: ${BUILD_NO_PROXY:-localhost,127.0.0.1,::1}
+        http_proxy: ${BUILD_HTTP_PROXY:-}
+        https_proxy: ${BUILD_HTTPS_PROXY:-}
+        no_proxy: ${BUILD_NO_PROXY:-localhost,127.0.0.1,::1}
     init: true
     read_only: true
     tmpfs:
@@ -97,6 +104,6 @@ volumes:
 
 secrets:
   db_app_password:
-    file: ./.docker-secrets/db_app_password
+    file: ${DOCKER_SECRET_DIRECTORY:-.docker-secrets}/db_app_password
   db_root_password:
-    file: ./.docker-secrets/db_root_password
+    file: ${DOCKER_SECRET_DIRECTORY:-.docker-secrets}/db_root_password

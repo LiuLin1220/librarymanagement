@@ -72,15 +72,19 @@
 - [x] 生产进程同源托管 Vue 静态文件，保留 `/api` 和健康接口的 JSON 404 边界。
 - [x] 增加 Windows/POSIX 一键启动、验证、停止、状态、日志和应用镜像回滚动作。
 - [x] 增加不依赖 Docker 的交付资产测试，以及 CI Compose 配置解析门禁。
+- [x] 增加 WSL Docker Engine 官方源安装脚本，并接入本机 `12334` 拉取/构建代理。
 - [ ] 在具备 Docker Engine 的机器上完成镜像构建和真实容器启动。
 - [ ] 抽查页面、就绪接口和样例图书 API，并验证写入数据经过停止/重启后仍存在。
 - [ ] 记录实际镜像 ID/摘要、`compose ps`、健康状态和日志证据。
 
-当前开发机的 Windows 与 WSL 均没有 Docker/Podman 命令，因此完成项只表示源码、
-脚本和静态门禁已经实现；不能据此宣称容器已经实际跑通。
+当前开发机的 Ubuntu 26.04 WSL 已安装 Docker Engine/CLI 29.7.2、containerd 2.3.3、
+Buildx 0.36.1 和 Compose 5.4.0。Docker 守护进程通过本机 `12334` HTTP 代理成功
+拉取并运行 `hello-world`；新 WSL 会话可直接访问 Docker，执行前后的 `docker ps`
+均未发现项目容器。
 
-当前静态证据：`npm run check` 通过，共执行 27 个测试；PowerShell 5.1 和 POSIX
-Shell 的语法/缺少 Docker 失败路径通过；lockfile 干净安装预检通过。Compose YAML
-已完成通用语法解析，并通过 Compose Specification 提交 `11296e3` 的官方 JSON
-Schema 校验（Schema SHA-256：`73ca5878c77570ba222a558016c7b3c6770ba5f3377786593e32180666512f8f`）。
-Docker Compose CLI 的变量展开、模型归一化和运行态仍需在具备 Docker 的环境执行。
+当前证据：`npm run check` 通过，共执行 29 个测试；POSIX Shell 语法检查通过；
+Compose Specification 提交 `11296e3` 的官方 JSON Schema 校验继续通过（Schema
+SHA-256：`73ca5878c77570ba222a558016c7b3c6770ba5f3377786593e32180666512f8f`）。真实
+Compose CLI 已完成默认配置和 `host + 127.0.0.1:12334` 构建代理配置的变量展开与
+模型归一化。WSL secret 来源解析到 Linux 文件系统，实测目录权限 `700`、文件权限
+`600`。受本仓库构建限制约束，项目镜像构建、应用/MySQL 启动及运行态验收尚未执行。

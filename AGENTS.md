@@ -20,6 +20,8 @@ Express + MySQL。除非任务明确要求变更，否则保留现有用户流�
 - `docs/refactor-plan.md`：当前债务、决策和完成证据。
 - `docs/container-deployment.md`：容器拓扑、生命周期、持久化、回滚和验收边界。
 - `scripts/container.*`：唯一的一键容器操作入口；默认停止不会删除数据卷。
+- `scripts/setup-docker-wsl.sh`：仅用于明确选择 WSL 部署时安装官方 Docker Engine；
+  必须先审计发行版、冲突包、代理、监听和现有 Docker 配置。
 
 ## 必须保持的规则
 
@@ -34,6 +36,8 @@ Express + MySQL。除非任务明确要求变更，否则保留现有用户流�
 9. 纯重构提交不要混入无关功能。
 10. 容器数据库默认不映射宿主机端口；secret 不写进 Compose 环境值或镜像层。
 11. 进程存活、数据库就绪、Compose 配置和真实运行状态必须分别验证。
+12. WSL 安装脚本不得自动卸载冲突包或删除 `/var/lib/docker`、
+    `/var/lib/containerd`；`docker` 组权限等同 WSL root，必须明确说明。
 
 ## 验证入口
 

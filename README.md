@@ -20,6 +20,24 @@
 
 ## 容器一键部署
 
+Windows 推荐直接使用现有 Ubuntu WSL 2。首次安装 WSL 内的 Docker Engine：
+
+```sh
+DOCKER_PROXY_URL=http://127.0.0.1:12334 sh scripts/setup-docker-wsl.sh
+```
+
+重新打开 WSL 终端后启动项目：
+
+```sh
+sh scripts/container.sh up
+```
+
+如果只想生成本地部署配置并校验 Compose，不构建镜像、不启动容器：
+
+```sh
+sh scripts/container.sh prepare
+```
+
 已安装并启动 Docker Desktop 后，在仓库根目录执行：
 
 ```powershell

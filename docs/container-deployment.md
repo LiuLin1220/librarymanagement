@@ -20,6 +20,45 @@
 宿主机不需要另装 Node.js 或 MySQL。一键脚本会先检查 Docker 引擎和 Compose，
 不满足条件时直接停止，不会尝试安装或启动系统服务。
 
+## WSL 2 推荐路径
+
+本项目在 Windows 上优先使用现有 Ubuntu WSL 2 内的 Docker Engine，不依赖 Docker
+Desktop。安装脚本只支持官方已覆盖的 Ubuntu 版本，并会拒绝未知发行版、非 amd64、
+缺少 systemd、缺少免密 sudo、冲突软件包或异常 Docker 签名密钥。
+
+当前网络如果需要 Hiddify，可把 Windows 回环端口 `12334` 作为 HTTP 代理。脚本只
+接受无凭据的本机回环代理，并把它配置给 WSL 内的 Docker 服务：
+
+```sh
+DOCKER_PROXY_URL=http://127.0.0.1:12334 sh scripts/setup-docker-wsl.sh
+```
+
+该操作会增加 Docker 官方 APT 源和签名密钥，安装 Docker Engine、CLI、containerd、
+Buildx 与 Compose plugin，启动 `docker`/`containerd` systemd 服务，并把当前 WSL
+用户加入 `docker` 组。`docker` 组在 WSL 内拥有等同 root 的控制能力。脚本完成后
+重新打开 WSL 终端。可以先生成本地配置并只校验 Compose；该命令不会构建镜像或
+启动容器：
+
+```sh
+sh scripts/container.sh prepare
+```
+
+确认配置后再启动：
+
+```sh
+sh scripts/container.sh up
+```
+
+在 WSL 中，如果 `12334` 可用且没有显式提供其他构建代理，部署脚本会自动让镜像
+构建步骤使用 host 网络和该代理；Docker 守护进程拉取基础镜像则使用安装阶段写入
+的 systemd 代理。应用和 MySQL 运行时不需要外网代理。
+
+撤销运行时但保留镜像和卷数据：先停止并禁用 `docker.service` 和
+`containerd.service`，再卸载 `docker-ce`、`docker-ce-cli`、`containerd.io`、
+`docker-buildx-plugin` 和 `docker-compose-plugin`，最后移除新增的 `docker.sources`、
+`docker.asc` 与 Docker systemd 代理 drop-in。不要删除 `/var/lib/docker` 或
+`/var/lib/containerd`，除非已确认其中没有需要保留的卷和镜像。
+
 ## 一键启动
 
 Windows PowerShell：
@@ -37,8 +76,14 @@ sh scripts/container.sh up
 首次启动会在本地生成以下不受 Git 跟踪的文件：
 
 - `.env.docker`：端口、镜像名、数据库名和应用数据库用户名等非秘密配置。
-- `.docker-secrets/db_app_password`：应用数据库用户的随机密码。
-- `.docker-secrets/db_root_password`：MySQL root 的随机密码。
+- WSL：`~/.local/state/librarymanagement/secrets/` 下的两份随机数据库密码。脚本会
+  把绝对路径写入 `.env.docker`，并把目录和文件权限收紧为 `700`/`600`。
+- 非 WSL：`.docker-secrets/` 下的两份随机数据库密码。
+
+WSL 仓库通常位于 `/mnt/c`，这里的 Windows 挂载权限不能可靠体现 Linux 的
+`chmod 600`，所以脚本拒绝把 WSL 密钥留在 `/mnt` 下。旧版若已在仓库生成密钥，
+脚本会先原样复制到 WSL 文件系统且保留旧文件；确认没有容器继续使用旧路径后，
+再显式清理仓库中的旧副本。
 
 随后脚本依次执行 Compose 配置解析、保留上一版应用镜像、构建/启动、等待容器
 健康，并抽查页面、数据库就绪状态和带样例数据的图书接口。全部通过后，访问
@@ -106,6 +151,8 @@ docker compose --env-file .env.docker down --volumes
   同源时不需要额外跨域配置。
 - `MYSQL_IMAGE` 固定到经过记录的 MySQL 8.4 补丁标签。升级前先查看官方变更并
   备份数据。
+- `DOCKER_SECRET_DIRECTORY` 由一键脚本管理。WSL 必须使用 Linux 文件系统中的
+  绝对路径，不能指向 `/mnt`；切换运行环境时应继续通过对应的一键脚本执行。
 - 已有数据卷创建后，单独改数据库名、用户名或 secret 文件不会自动修改 MySQL
   内部账号；不能把替换 secret 文件当成密码轮换。
 
